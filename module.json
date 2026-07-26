@@ -1,0 +1,21 @@
+{
+  "id": "true-map-reveal",
+  "title": "True Map Reveal",
+  "description": "Reveals a second 'true' map image in a soft circle following a chosen token, synced live to every connected client.",
+  "version": "1.0.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "14"
+  },
+  "authors": [
+    {
+      "name": "Custom (built for Town of Reverie campaign)"
+    }
+  ],
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "url": "",
+  "manifest": "",
+  "download": ""
+}
