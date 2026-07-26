@@ -10,39 +10,31 @@ let state = {
 };
 
 /* ------------------------------------------------------------------ */
-/* Settings — GM configures these once via Module Settings            */
+/* Settings — these are now just DEFAULTS used when a scene hasn't    */
+/* been given its own True Map config yet.                            */
 /* ------------------------------------------------------------------ */
 Hooks.once("init", () => {
-  game.settings.register(MODULE_ID, "trueMapPath", {
-    name: "True Map Image Path",
-    hint: "Path to the 'true map' image. Must match the current scene's dimensions/alignment for the reveal to line up.",
-    scope: "world",
-    config: true,
-    type: String,
-    default: ""
-  });
-
-  game.settings.register(MODULE_ID, "revealRadius", {
-    name: "Reveal Radius (px)",
-    hint: "Radius of the soft reveal circle around the token, in pixels.",
+  game.settings.register(MODULE_ID, "defaultRevealRadius", {
+    name: "Default Reveal Radius (px)",
+    hint: "Used as the starting value when setting up a new scene's true map.",
     scope: "world",
     config: true,
     type: Number,
     default: 300
   });
 
-  game.settings.register(MODULE_ID, "softEdge", {
-    name: "Soft Edge Feather (px)",
-    hint: "How feathered the edge of the reveal circle is, in pixels.",
+  game.settings.register(MODULE_ID, "defaultSoftEdge", {
+    name: "Default Soft Edge Feather (px)",
+    hint: "Used as the starting value when setting up a new scene's true map.",
     scope: "world",
     config: true,
     type: Number,
     default: 80
   });
 
-  game.settings.register(MODULE_ID, "followSpeed", {
-    name: "Follow Speed",
-    hint: "1 = instant follow. Lower values (e.g. 0.2) make the reveal glide/lag behind the token for a smoother feel.",
+  game.settings.register(MODULE_ID, "defaultFollowSpeed", {
+    name: "Default Follow Speed",
+    hint: "1 = instant follow, lower = smoother glide. Used as the starting value for new scenes.",
     scope: "world",
     config: true,
     type: Number,
@@ -71,10 +63,12 @@ async function buildReveal(tokenId, sceneId, config) {
   }
 
   const sprite = new PIXI.Sprite(texture);
-  sprite.x = 0;
-  sprite.y = 0;
-  sprite.width = canvas.scene.width;
-  sprite.height = canvas.scene.height;
+  const rect = canvas.dimensions.sceneRect;
+  const bg = canvas.scene.background ?? {};
+  sprite.x = rect.x + (bg.offsetX ?? 0);
+  sprite.y = rect.y + (bg.offsetY ?? 0);
+  sprite.width = rect.width;
+  sprite.height = rect.height;
 
   const maskRadius = config.revealRadius;
   const softEdge = config.softEdge;
@@ -129,7 +123,7 @@ function teardownReveal() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Socket listener — receives broadcasts from the GM's client         */
+/* Socket listener + API                                               */
 /* ------------------------------------------------------------------ */
 Hooks.once("ready", () => {
   game.socket.on(SOCKET_CHANNEL, (payload) => {
@@ -140,23 +134,57 @@ Hooks.once("ready", () => {
     }
   });
 
-  // Late-join / reload sync: check scene flag on canvas ready
+  // Late-join / reload / scene-switch sync: check the ACTIVE scene's
+  // reveal-state flag whenever the canvas becomes ready.
   Hooks.on("canvasReady", () => {
     teardownReveal();
-    const flag = canvas.scene?.getFlag(MODULE_ID, "state");
-    if (flag?.active) {
-      buildReveal(flag.tokenId, canvas.scene.id, flag.config);
+    const activeFlag = canvas.scene?.getFlag(MODULE_ID, "activeState");
+    if (activeFlag?.active) {
+      buildReveal(activeFlag.tokenId, canvas.scene.id, activeFlag.config);
     }
   });
 
-  // Expose a simple API for macros: game.modules.get('true-map-reveal').api
   const mod = game.modules.get(MODULE_ID);
   mod.api = {
     /**
-     * Enable the reveal for the currently controlled token (GM only).
-     * Uses configured module settings unless overrides are passed.
+     * Set (or update) the True Map configuration for the CURRENT scene.
+     * Run this once per scene. Safe to re-run to change the image/settings.
      */
-    async enableForControlledToken(overrides = {}) {
+    async setSceneConfig({ trueMapPath, revealRadius, softEdge, followSpeed } = {}) {
+      if (!game.user.isGM) {
+        ui.notifications.warn("Only the GM can configure the True Map Reveal.");
+        return;
+      }
+      if (!canvas.scene) {
+        ui.notifications.warn("No active scene.");
+        return;
+      }
+      if (!trueMapPath) {
+        ui.notifications.error("You must provide a trueMapPath.");
+        return;
+      }
+
+      const config = {
+        trueMapPath,
+        revealRadius: revealRadius ?? game.settings.get(MODULE_ID, "defaultRevealRadius"),
+        softEdge: softEdge ?? game.settings.get(MODULE_ID, "defaultSoftEdge"),
+        followSpeed: followSpeed ?? game.settings.get(MODULE_ID, "defaultFollowSpeed")
+      };
+
+      await canvas.scene.setFlag(MODULE_ID, "sceneConfig", config);
+      ui.notifications.info(`True Map config saved for scene "${canvas.scene.name}".`);
+    },
+
+    /** Get the current scene's True Map config, if any. */
+    getSceneConfig() {
+      return canvas.scene?.getFlag(MODULE_ID, "sceneConfig") ?? null;
+    },
+
+    /**
+     * Enable the reveal for the currently controlled token, using
+     * THIS SCENE's saved True Map config (set via setSceneConfig first).
+     */
+    async enableForControlledToken() {
       if (!game.user.isGM) {
         ui.notifications.warn("Only the GM can toggle the True Map Reveal.");
         return;
@@ -167,15 +195,11 @@ Hooks.once("ready", () => {
         return;
       }
 
-      const config = {
-        trueMapPath: overrides.trueMapPath ?? game.settings.get(MODULE_ID, "trueMapPath"),
-        revealRadius: overrides.revealRadius ?? game.settings.get(MODULE_ID, "revealRadius"),
-        softEdge: overrides.softEdge ?? game.settings.get(MODULE_ID, "softEdge"),
-        followSpeed: overrides.followSpeed ?? game.settings.get(MODULE_ID, "followSpeed")
-      };
-
-      if (!config.trueMapPath) {
-        ui.notifications.error("Set the True Map Image Path in Module Settings first.");
+      const config = canvas.scene.getFlag(MODULE_ID, "sceneConfig");
+      if (!config?.trueMapPath) {
+        ui.notifications.error(
+          `No True Map configured for scene "${canvas.scene.name}" yet. Run the "Set True Map for This Scene" macro first.`
+        );
         return;
       }
 
@@ -188,7 +212,7 @@ Hooks.once("ready", () => {
 
       game.socket.emit(SOCKET_CHANNEL, payload);
       await buildReveal(payload.tokenId, payload.sceneId, payload.config); // local render for GM
-      await canvas.scene.setFlag(MODULE_ID, "state", { active: true, tokenId: token.id, config });
+      await canvas.scene.setFlag(MODULE_ID, "activeState", { active: true, tokenId: token.id, config });
 
       ui.notifications.info("True Map Reveal enabled for all clients.");
     },
@@ -200,7 +224,7 @@ Hooks.once("ready", () => {
       }
       game.socket.emit(SOCKET_CHANNEL, { action: "disable" });
       teardownReveal();
-      await canvas.scene.setFlag(MODULE_ID, "state", { active: false });
+      await canvas.scene.setFlag(MODULE_ID, "activeState", { active: false });
       ui.notifications.info("True Map Reveal disabled for all clients.");
     }
   };

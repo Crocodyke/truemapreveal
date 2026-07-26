@@ -24,25 +24,36 @@ setup for players.
   The Forge specifically, I can help you get it hosted properly (e.g. a
   simple GitHub repo) so the manifest URL works.
 
-## Configuration (one-time, per world)
+## Configuration — now PER SCENE (v1.1.0+)
 
-1. As GM, go to **Game Settings → Configure Settings → Module Settings**.
-2. Find the **True Map Reveal** section and set:
-   - **True Map Image Path** — path to your true-map image (must match the
-     current scene's dimensions/alignment so the reveal lines up correctly).
-   - **Reveal Radius** — how big the circle is, in pixels.
-   - **Soft Edge Feather** — how blurred/feathered the edge is, in pixels.
-   - **Follow Speed** — 1 = instant follow, lower = smoother lag behind the token.
-3. Save.
+Each scene remembers its own true map image and settings independently, so
+you can freely switch between the Town of Reverie, the three simulated
+worlds, etc. and each one keeps its own configuration.
+
+**Optional world-wide defaults:** Game Settings → Configure Settings →
+Module Settings lets you set default radius/feather/follow-speed values
+used to pre-fill the per-scene dialog (purely a convenience, not required).
+
+**Per-scene setup:**
+1. Create a new **Script Macro** and paste in `set-scene-truemap-macro.js`.
+2. While viewing the scene you want to configure, run this macro.
+3. A dialog opens — browse to (or paste) the true-map image path for THIS
+   scene, adjust radius/feather/follow speed if you like, and click Save.
+4. Repeat once for each scene that needs its own true map. You only need to
+   do this once per scene, ever — it's remembered from then on.
 
 ## Usage
 
-1. Create a new **Script Macro** and paste in the contents of
-   `gm-toggle-macro.js` (included in this folder).
-2. Select the token you want the reveal centered on.
-3. Run the macro. Every connected player will immediately see the true map
-   revealed in a circle following that token — no action required on their end.
-4. Run the macro again to turn it off for everyone.
+1. Create a second **Script Macro** and paste in `gm-toggle-macro.js`.
+2. Navigate to the scene you want (make sure you've already set its true
+   map via the macro above at least once).
+3. Select the token you want the reveal centered on.
+4. Run the toggle macro. Every connected player will immediately see the
+   true map revealed in a circle following that token — no action required
+   on their end.
+5. Run the toggle macro again to turn it off for everyone.
+6. Switching to a different scene and running the toggle macro there will
+   automatically use THAT scene's own configured true map.
 
 ## Notes
 

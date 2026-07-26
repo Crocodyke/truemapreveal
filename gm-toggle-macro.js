@@ -2,8 +2,8 @@
  * True Map Reveal — GM Toggle
  * ------------------------------------------------------------
  * Requires the "True Map Reveal" MODULE to be installed and enabled.
- * Configure the image path/radius/etc. in Game Settings > Module Settings
- * before using this.
+ * Requires you to have already run "Set True Map for This Scene" at
+ * least once for the scene you're currently viewing.
  *
  * Select a token, then run this macro to enable the reveal for everyone.
  * Run it again (token selection doesn't matter) to disable it.
